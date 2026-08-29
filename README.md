@@ -10,8 +10,7 @@ IGDB integration. It is not hosted, so it runs against a laptop over LAN.
 **The source is private and available on request.** This repo is the write up:
 what was built, how the decisions were measured, and what is not finished.
 
-<!-- DEMO VIDEO: paste the github.com/user-attachments/assets/... URL on its own
-     line here, with a blank line above and below it. Nothing else. -->
+https://github.com/user-attachments/assets/cdea8a0c-c4fd-4995-8df8-9c62eb0ed926
 
 ## What works
 
