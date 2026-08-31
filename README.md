@@ -30,8 +30,18 @@ your feed, open it, comment on it.
   draws on launch and refreshes behind.
 - **Comments** on any review, deletable by their author and by the review's
   author.
-- **A paid tier** unlocking per review backdrop art, resolved at read time so a
-  lapsed subscription hides a choice rather than destroying it.
+- **A paid tier** unlocking per review backdrop art and profile header art,
+  resolved at read time so a lapsed subscription hides a choice rather than
+  destroying it.
+- **A profile** that is a portrait rather than a dashboard: header art, a
+  Favorites shelf of four games picked by search and reorderable by drag, an
+  archive of every review, and a rating histogram of how that person scores,
+  with tappable buckets.
+- **Discover**, built on IGDB rather than on our own 27 reviews: three rails and
+  23 genre pages with infinite scroll, behind a process-wide rate limiter that
+  makes IGDB's 4/s ceiling unreachable by construction.
+- **Account deletion** that means it: one statement, seven cascading foreign
+  keys, and the caller's comments leave other people's reviews.
 
 | Feed | Game page | Review and comments | Profile |
 |---|---|---|---|
@@ -116,6 +126,20 @@ rather than guess. The follow button waits as a shape with no tap target, sized
 so nothing moves when the real one lands, because a button that renders a state
 and then flips it invites a tap against a fabricated baseline. Two of the deleted
 things came back later, once there was real data behind them.
+
+### The fix that compiles is not always the right one
+
+Xcode reported ten Swift 6 warnings; seven had a single cause, and it was a build
+setting rather than seven bugs. `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` had
+silently bound the image pipeline's request and cache types to the main actor,
+and the loader is an `actor`, so every access became a cross-actor violation.
+
+Adding `await` at each site silences all seven and compiles cleanly. It also
+moves every decoded-image cache read onto the main thread, which is the exact
+property the pipeline exists to provide. The correct fix was to mark the two
+types `nonisolated` — the compiler's complaint was right, and its obvious remedy
+was wrong. Both types are `Sendable` already; the isolation bought nothing and
+cost the one thing the cache is for.
 
 ### Fixing a bug is not the same as proving it fixed
 
