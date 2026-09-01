@@ -4,8 +4,10 @@ Valt is Letterboxd for video games: log what you have played, rate and review it
 follow people, and read what they thought. A native iOS app on a TypeScript
 backend, built solo.
 
-The loop runs end to end on a physical device against a real backend and a live
-IGDB integration. It is not hosted, so it runs against a laptop over LAN.
+The loop runs end to end on a physical device against a deployed backend and a
+live IGDB integration. The API runs on EC2 behind Caddy, over HTTPS, kept up by
+systemd, in the same VPC as the database — which takes connections only from the
+API's security group and is reachable from nowhere else.
 
 **The source is private and available on request.** This repo is the write up:
 what was built, how the decisions were measured, and what is not finished.
@@ -49,8 +51,8 @@ your feed, open it, comment on it.
 
 ## Stack
 
-**Server** TypeScript, Express 5, Prisma, Postgres on RDS. Five runtime
-dependencies.
+**Server** TypeScript, Express 5, Prisma, Postgres on RDS, deployed to EC2
+behind Caddy. Six runtime dependencies.
 
 **iOS** Swift and SwiftUI, deployment target 26.5, `@Observable` screen models,
 async/await over URLSession. No third party dependencies at all: the image
@@ -66,7 +68,8 @@ hold the API contract and is empty, see below.
 The laptop is in California and the database is in Virginia, so **every SQL
 statement costs about 82 ms**, and an endpoint's latency is that times its number
 of statements. Application code never exceeded **5 ms** on any endpoint
-measured.
+measured. (Those are development numbers. The deployed API sits in the same
+region as the database and has not been re-measured.)
 
 Search was the worst of them at **2,034 ms** for twenty results, of which IGDB
 was 190 ms and the rest was twenty cache writes with the client blocked. It now
@@ -154,8 +157,6 @@ the new one renders 6.
 
 ## What is not built
 
-- **Not hosted.** The server runs on a laptop; the client points at localhost on
-  the simulator and a hardcoded LAN address on device.
 - **No payments.** The paid tier is a boolean with a development only route to
   flip it. No entitlement check, and written up as a privilege escalation hole to
   remove before any payment path exists.
@@ -172,7 +173,6 @@ the new one renders 6.
 
 ## What I would do next
 
-- Host the server, so it stops being a laptop on a LAN.
 - Add `publishedAt` to `Review`. A bare log that later gains a rating keeps its
   original `createdAt`, so it sorts back dated below every follower's cursor and
   is invisible.
