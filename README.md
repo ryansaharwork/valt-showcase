@@ -6,8 +6,8 @@ backend, built solo.
 
 The loop runs end to end on a physical device against a deployed backend and a
 live IGDB integration. The API runs on EC2 behind Caddy, over HTTPS, kept up by
-systemd, in the same VPC as the database — which takes connections only from the
-API's security group and is reachable from nowhere else.
+systemd, in the same VPC as the database — which admits the API's security group
+and one development address, and nothing else.
 
 **The source is private and available on request.** This repo is the write up:
 what was built, how the decisions were measured, and what is not finished.
@@ -20,7 +20,12 @@ Sign in, search a game, rate and review it, follow someone, see their review in
 your feed, open it, comment on it.
 
 - **Auth** with email and password: argon2id, JWT via jose, `requireAuth` and
-  `optionalAuth`. Sign in with Apple is intended, not built.
+  `optionalAuth`. A forgotten password is reset with an emailed 8 digit code, and
+  the reset ends every session the account had, on every device. Sign in with
+  Apple is intended, not built.
+- **Signup consent**, recorded in the statement that creates the account: when
+  the terms and the privacy policy were accepted, and which text of each. Both
+  documents open from the agreement and from Settings.
 - **IGDB game data** proxied and cached in Postgres. The client never talks to
   IGDB and never holds the key.
 - **Reviews** with half star ratings, 0.5 to 5, and optional text. Edited and
@@ -32,6 +37,10 @@ your feed, open it, comment on it.
   draws on launch and refreshes behind.
 - **Comments** on any review, deletable by their author and by the review's
   author.
+- **Blocking and reporting.** A block hides each person from the other, and the
+  seven routes that return other people's content filter it inside the query. A
+  block is undone from the profile or from a list in Settings. A person, a review
+  or a comment can be reported, and a report emails the support inbox.
 - **A paid tier** unlocking per review backdrop art and profile header art,
   resolved at read time so a lapsed subscription hides a choice rather than
   destroying it.
@@ -39,10 +48,11 @@ your feed, open it, comment on it.
   Favorites shelf of four games picked by search and reorderable by drag, an
   archive of every review, and a rating histogram of how that person scores,
   with tappable buckets.
-- **Discover**, built on IGDB rather than on our own 27 reviews: three rails and
-  23 genre pages with infinite scroll, behind a process-wide rate limiter that
-  makes IGDB's 4/s ceiling unreachable by construction.
-- **Account deletion** that means it: one statement, seven cascading foreign
+- **Discover**, built on IGDB rather than on our own reviews, which numbered 27
+  when it was built: three rails and 23 genre pages with infinite scroll, behind
+  a process wide rate limiter that queues every IGDB call 260 ms apart to stay
+  under its 4/s ceiling.
+- **Account deletion** that means it: one statement, twelve cascading foreign
   keys, and the caller's comments leave other people's reviews.
 
 | Feed | Game page | Review and comments | Profile |
@@ -52,7 +62,7 @@ your feed, open it, comment on it.
 ## Stack
 
 **Server** TypeScript, Express 5, Prisma, Postgres on RDS, deployed to EC2
-behind Caddy. Six runtime dependencies.
+behind Caddy, with mail sent through Amazon SES. Seven runtime dependencies.
 
 **iOS** Swift and SwiftUI, deployment target 26.5, `@Observable` screen models,
 async/await over URLSession. No third party dependencies at all: the image
@@ -119,10 +129,11 @@ later stay usable instead of silently shrinking every picker.
 
 ### A control that lies is worse than no control
 
-An activity bell, a "Now playing" shelf, two review sections on the game page and
-a backdrop picker in Edit Profile were all deleted under that rule. "Now playing"
-is the clearest: `playStatus` is only ever `COMPLETED` in practice, so that list
-would have been permanently empty for every user.
+An activity bell, a "Now playing" shelf, two review sections on the game page, a
+backdrop picker in Edit Profile, and three onboarding steps that pretended to
+connect game platforms, scan a library and suggest friends were all deleted under
+that rule. "Now playing" is the clearest: `playStatus` is only ever `COMPLETED`
+in practice, so that list would have been permanently empty for every user.
 
 Where the answer has merely not arrived yet, the corollary is to draw nothing
 rather than guess. The follow button waits as a shape with no tap target, sized
@@ -160,14 +171,19 @@ the new one renders 6.
 - **No payments.** The paid tier is a boolean with a development only route to
   flip it. No entitlement check, and written up as a privilege escalation hole to
   remove before any payment path exists.
-- **No automated tests.** Verification was query logs, `EXPLAIN`, curl permission
-  matrices and checks on device.
-- **No rate limiting on comments.** The only limiters cover register and login,
-  for argon2's CPU cost rather than spam.
+- **No test suite.** Verification is query logs, `EXPLAIN`, shell scripts that
+  walk the permission matrices with curl, and checks on device.
+- **No rate limiting on comments or reports.** The limiters cover register, login
+  and the two password reset routes, and none of them exists to stop spam.
+- **No email verification.** The address on an account owns it, so a signup
+  address typed wrong cannot be recovered.
+- **Moderation is manual.** A report arrives by email and is acted on with SQL
+  from a runbook. There is no admin tool.
 - **Comments cannot be edited**, only deleted; the row has no `updatedAt`.
   Reviews can be edited and deleted.
-- **Six screens compile and nothing pushes them:** Browse, Followers, Wrap,
-  ListsHub, Library, and a mock friend profile.
+- **Eight screens compile and nothing reachable pushes them:** Browse, Followers,
+  Wrap, ListsHub, Library, a mock friend profile, a list detail screen reached only
+  from ListsHub, and a run detail screen that nothing pushes at all.
 - **`shared/` is empty.** The API contract lives in the server's types, mirrored
   by hand in Swift.
 
@@ -178,9 +194,9 @@ the new one renders 6.
   is invisible.
 - Measure Prisma's `relationJoins`. Every `include` is its own round trip today,
   so the feed's is three statements where it reads like one.
-- Delete the development tier toggle and rate limit comments before anything is
-  public.
+- Delete the development tier toggle, and rate limit comments and reports, before
+  anything is public.
 - Tests around the two things verified by hand and easiest to regress: cursor
   pagination and the comment permission matrix.
-- Decide the six unreachable screens: wire them to real data, or delete them.
+- Decide the eight unreachable screens: wire them to real data, or delete them.
 
