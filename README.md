@@ -20,9 +20,11 @@ Sign in, search a game, rate and review it, follow someone, see their review in
 your feed, open it, comment on it.
 
 - **Auth** with email and password: argon2id, JWT via jose, `requireAuth` and
-  `optionalAuth`. A forgotten password is reset with an emailed 8 digit code, and
-  the reset ends every session the account had, on every device. Sign in with
-  Apple is intended, not built.
+  `optionalAuth`. A new account confirms its address with an emailed 8 digit code
+  before it can use the app, and one left unconfirmed for 24 hours is deleted. A
+  forgotten password is reset with an emailed code of its own, and the reset ends
+  every session the account had, on every device. Sign in with Apple is intended,
+  not built.
 - **Signup consent**, recorded in the statement that creates the account: when
   the terms and the privacy policy were accepted, and which text of each. Both
   documents open from the agreement and from Settings.
@@ -168,15 +170,14 @@ the new one renders 6.
 
 ## What is not built
 
-- **No payments.** The paid tier is a boolean with a development only route to
-  flip it. No entitlement check, and written up as a privilege escalation hole to
-  remove before any payment path exists.
+- **No payments.** The paid tier is a boolean set by hand in the database. The
+  development only route that flipped it, and the switch that called it, were
+  deleted before any payment path exists; the Settings row that names the tier
+  shows only to Pro accounts.
 - **No test suite.** Verification is query logs, `EXPLAIN`, shell scripts that
   walk the permission matrices with curl, and checks on device.
 - **No rate limiting on comments or reports.** The limiters cover register, login
   and the two password reset routes, and none of them exists to stop spam.
-- **No email verification.** The address on an account owns it, so a signup
-  address typed wrong cannot be recovered.
 - **Moderation is manual.** A report arrives by email and is acted on with SQL
   from a runbook. There is no admin tool.
 - **Comments cannot be edited**, only deleted; the row has no `updatedAt`.
@@ -194,8 +195,7 @@ the new one renders 6.
   is invisible.
 - Measure Prisma's `relationJoins`. Every `include` is its own round trip today,
   so the feed's is three statements where it reads like one.
-- Delete the development tier toggle, and rate limit comments and reports, before
-  anything is public.
+- Rate limit comments and reports before anything is public.
 - Tests around the two things verified by hand and easiest to regress: cursor
   pagination and the comment permission matrix.
 - Decide the eight unreachable screens: wire them to real data, or delete them.
