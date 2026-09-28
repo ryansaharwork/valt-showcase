@@ -176,15 +176,17 @@ the new one renders 6.
   shows only to Pro accounts.
 - **No test suite.** Verification is query logs, `EXPLAIN`, shell scripts that
   walk the permission matrices with curl, and checks on device.
-- **No rate limiting on comments or reports.** The limiters cover register, login
-  and the two password reset routes, and none of them exists to stop spam.
+- **Rate limits live in memory.** Comments are limited to 60 an hour and reports
+  to 20 an hour per account, beside the per IP limits on register, login and
+  password reset. The counts are held by the one server process, so a restart or
+  a deploy resets them.
 - **Moderation is manual.** A report arrives by email and is acted on with SQL
   from a runbook. There is no admin tool.
 - **Comments cannot be edited**, only deleted; the row has no `updatedAt`.
   Reviews can be edited and deleted.
-- **Eight screens compile and nothing reachable pushes them:** Browse, Followers,
-  Wrap, ListsHub, Library, a mock friend profile, a list detail screen reached only
-  from ListsHub, and a run detail screen that nothing pushes at all.
+- **No follower lists and no user made lists.** The server already answers who
+  follows whom, and the schema has `List` and `ListItem` models with no routes.
+  The mock screens for both, and every other screen nothing reached, were deleted.
 - **`shared/` is empty.** The API contract lives in the server's types, mirrored
   by hand in Swift.
 
@@ -195,8 +197,7 @@ the new one renders 6.
   is invisible.
 - Measure Prisma's `relationJoins`. Every `include` is its own round trip today,
   so the feed's is three statements where it reads like one.
-- Rate limit comments and reports before anything is public.
 - Tests around the two things verified by hand and easiest to regress: cursor
   pagination and the comment permission matrix.
-- Decide the eight unreachable screens: wire them to real data, or delete them.
+- After launch, build follower lists and user made lists for real, written fresh.
 
