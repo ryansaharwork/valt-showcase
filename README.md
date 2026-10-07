@@ -30,19 +30,30 @@ your feed, open it, comment on it.
   documents open from the agreement and from Settings.
 - **IGDB game data** proxied and cached in Postgres. The client never talks to
   IGDB and never holds the key.
+- **Game search** that forgives how people type: accents, hyphens, punctuation
+  and numerals ("pokemon", "spiderman", "gta 5"), with popular main games ranked
+  above fan games, DLC and editions.
 - **Reviews** with half star ratings, 0.5 to 5, and optional text. Edited and
   deleted from the view they are read in.
 - **A rating histogram** per game, public, so it renders before you sign up.
 - **Follows, profiles and people search** that answers whether you already follow
-  each result in the statement that finds them.
+  each result in the statement that finds them. Tapping either count on a profile
+  opens who follows them and whom they follow, each row with its own Follow
+  button; across a block both lists are empty.
 - **A feed** of the people you follow, cursor paged and cached to disk, so it
   draws on launch and refreshes behind.
 - **Comments** on any review, deletable by their author and by the review's
   author.
 - **Blocking and reporting.** A block hides each person from the other, and the
   seven routes that return other people's content filter it inside the query. A
-  block is undone from the profile or from a list in Settings. A person, a review
-  or a comment can be reported, and a report emails the support inbox.
+  block is undone from the profile or from a list in Settings. A person, a
+  review, a comment, a profile photo or a list can be reported, and a report
+  emails the support inbox.
+- **Lists**, Letterboxd's way: up to 250 games, ranked or not, private until
+  published, a note on each, reordered by dragging and saved in one transaction
+  refused if the list changed elsewhere. A list page shows "You've logged X of
+  Y", a numbered cover grid or a detailed view, and a profile's Lists tab shows
+  each as a stack of covers. Public lists can be reported; blocks hide them.
 - **A paid tier** unlocking per review backdrop art and profile header art,
   resolved at read time so a lapsed subscription hides a choice rather than
   destroying it.
@@ -85,11 +96,30 @@ region as the database and has not been re-measured.)
 
 Search was the worst of them at **2,034 ms** for twenty results, of which IGDB
 was 190 ms and the rest was twenty cache writes with the client blocked. It now
-answers from the IGDB payload and caches afterwards: **2,034 ms to about
-146 ms**, and latency stopped scaling with result count, which had tracked
-linearly at 89 ms each. The `.catch` on that detached write is load bearing,
-because Node terminates the process on an unhandled rejection. Tested by pointing
-the database at a dead port.
+answers from the IGDB payload and caches afterwards, so latency stopped scaling
+with result count, which had tracked linearly at 89 ms each. The `.catch` on
+that detached write is load bearing, because Node terminates the process on an
+unhandled rejection. Tested by pointing the database at a dead port.
+
+### Search was measured against IGDB before it was changed
+
+Friends found search too strict, so IGDB's behaviour was measured first. Its
+`search` ranks by name alone and is rarely short of results, just wrong ones:
+"pokemon" returned fifty fan games and no Pokémon Red, "zelda" had no Breath of
+the Wild. A query on IGDB's ASCII slugs sorted by rating count finds those, but
+misses what `search` finds through alternative names ("gta 5" is "GTA V" there).
+So each search sends both, and the server merges and reranks them: how well the
+name matches, then how many people rated the game, with DLC, expansions and
+editions under their main game. One measured trap shaped the ranking: an
+alternative name may count as an exact match but never as "starts with", or
+"Zelda: Ocarina of Time" puts Ocarina of Time above Breath of the Wild.
+
+Two queries make a fresh search slower than one, and IGDB's request limit is
+shared by every user, so results are cached in memory for an hour, keyed by the
+normalised query: a repeat makes no IGDB request at all, and a failure is never
+cached. Timed on the deployed server itself, from localhost, a fresh search took
+0.57 to 0.61 s and a cached repeat 4 ms. That leaves out the phone's own network,
+so it is not an end to end figure.
 
 ### A pagination bug that only appeared if you edited mid scroll
 
@@ -179,14 +209,15 @@ the new one renders 6.
 - **Rate limits live in memory.** Comments are limited to 60 an hour and reports
   to 20 an hour per account, beside the per IP limits on register, login and
   password reset. The counts are held by the one server process, so a restart or
-  a deploy resets them.
+  a deploy resets them. Follows are the exception: at most 200 in any 24 hours per
+  account, counted in the database so a deploy does not reset them, and an
+  unfollow gives no slot back.
 - **Moderation is manual.** A report arrives by email and is acted on with SQL
   from a runbook. There is no admin tool.
 - **Comments cannot be edited**, only deleted; the row has no `updatedAt`.
   Reviews can be edited and deleted.
-- **No follower lists and no user made lists.** The server already answers who
-  follows whom, and the schema has `List` and `ListItem` models with no routes.
-  The mock screens for both, and every other screen nothing reached, were deleted.
+- **Lists have no likes or comments yet**, and nobody is told when a list is
+  published. The schema leaves room for both.
 - **`shared/` is empty.** The API contract lives in the server's types, mirrored
   by hand in Swift.
 
@@ -199,5 +230,3 @@ the new one renders 6.
   so the feed's is three statements where it reads like one.
 - Tests around the two things verified by hand and easiest to regress: cursor
   pagination and the comment permission matrix.
-- After launch, build follower lists and user made lists for real, written fresh.
-
