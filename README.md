@@ -72,10 +72,61 @@ your feed, open it, comment on it.
 |---|---|---|---|
 | ![Home feed](screenshots/01-feed.png) | ![Game page with ratings and community reviews](screenshots/02-game-page.png) | ![Review with its comment thread](screenshots/03-review.png) | ![Profile](screenshots/04-profile.png) |
 
+## Push notifications
+
+Live since October 8, 2026. Valt tells your phone when someone likes your review
+or your comment, comments on your review, replies to your comment, or follows you.
+
+- **Activity decides, push only delivers.** The app's Activity screen already
+  lists those events, read from the likes, comments and follows themselves.
+  Before anything is sent the server asks Activity for that one row, so a
+  notification says exactly what Activity would show, in the same sentence, and
+  never what it would hide: your own actions, anyone across a block, or something
+  already undone. Only a new row is news: a repeated like or a follow of someone
+  already followed sends nothing.
+- **It never slows the write.** The like, comment or follow answers first; the
+  notification is queued after the response, and a failure there is a log line,
+  never an error anyone sees.
+- **Asking.** iOS is asked only from Valt's own card, never on a cold launch: the
+  first time Home appears, then after "Not now" again at the next review,
+  comment, reply or follow, no sooner than three days after it last showed and at
+  most three times, counted on the phone. Once iOS has an answer the card never
+  returns; while notifications are off, Activity and Settings carry a row that
+  asks, or opens iOS Settings once they were refused.
+- **Three switches in Settings**: Likes, Comments and replies, New followers.
+  Kept on the server, which reads them before it looks for a device, so a muted
+  kind costs nothing.
+- **A tap opens the thing itself.** Valt opens Activity, reads that one row again
+  from the server and opens it as a tap on it would: the review with its thread
+  open at the comment or reply, or the follower's profile. Something removed
+  since opens nothing, and so does a notification addressed to an account no
+  longer signed in on that phone.
+- **Limits, so nobody can flood a lock screen.** Comments, replies and new
+  followers notify at once. The first like on a review or a comment notifies at
+  once; later likes on it wait and arrive as one update at most every three hours
+  ("Devon and 2 others liked your review…"), replacing the earlier one. At most
+  five like notifications per person in any 24 hours; past that, likes show only
+  in Activity. One follow notification per pair of people in any 24 hours, so
+  following, unfollowing and following again cannot buzz someone twice, and a
+  follow made while that person's notifications were off uses nothing up. At
+  most 200 follows per account in any 24 hours, and an unfollow gives no slot
+  back. Each of these is claimed in one conditional write, so two likes or
+  follows arriving together cannot both notify.
+- **Our own APNs client**, about 200 lines on Node's `node:http2` and `jose`,
+  which already signed the server's JWTs, so push added no dependency. It signs
+  an ES256 provider token and reuses it for 40 minutes (Apple refuses one older
+  than an hour or refreshed more often than every 20), keeps one HTTP/2
+  connection per Apple host, and deletes a device when Apple says its token is
+  dead. It never logs a device token or the key, and the key lives only in the
+  environment file on the server.
+- **No badge.** The app icon shows no count; the dot on Activity's bell is the
+  only unread signal.
+
 ## Stack
 
 **Server** TypeScript, Express 5, Prisma, Postgres on RDS, deployed to EC2
-behind Caddy, with mail sent through Amazon SES. Seven runtime dependencies.
+behind Caddy, with mail sent through Amazon SES and notifications through
+Apple's push service. Ten runtime dependencies.
 
 **iOS** Swift and SwiftUI, deployment target 26.5, `@Observable` screen models,
 async/await over URLSession. No third party dependencies at all: the image
